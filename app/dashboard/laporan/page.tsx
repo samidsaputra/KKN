@@ -995,7 +995,7 @@ export default function LaporanBulanan() {
           </Button>
           <Button variant={laporanType === "bulanan" ? "default" : "outline"} onClick={() => setLaporanType("bulanan")}>
             <FileText className="mr-2 h-4 w-4" />
-            Laporan Bulanan
+            Register Bulanan
           </Button>
         </div>
 
@@ -1321,8 +1321,8 @@ export default function LaporanBulanan() {
           <>
             <Card className="mb-6">
               <CardHeader>
-                <CardTitle>Filter Laporan Bulanan</CardTitle>
-                <CardDescription>Pilih periode untuk membuat rekap bulanan</CardDescription>
+                <CardTitle>Filter Register Bulanan</CardTitle>
+                <CardDescription>Pilih periode untuk membuat register bulanan</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-3 gap-4 items-end">
@@ -1358,7 +1358,7 @@ export default function LaporanBulanan() {
                   </div>
                   <Button onClick={generateRekapBulanan}>
                     <FileText className="mr-2 h-4 w-4" />
-                    Buat Rekap Bulanan
+                    Buat Register Bulanan
                   </Button>
                 </div>
               </CardContent>
@@ -1397,7 +1397,7 @@ export default function LaporanBulanan() {
                         <TableHeader>
                           <TableRow className="bg-gray-50">
                             <TableHead className="font-bold text-center min-w-[100px]">Tanggal</TableHead>
-                            {rekapBulanan.jenisBarang.map((jenis) => (
+                            {rekapBulanan.jenisBarang.map((jenis: string) => (
                               <TableHead key={jenis} className="font-bold text-center min-w-[80px] text-xs">
                                 {jenis.toUpperCase()}
                               </TableHead>
@@ -1406,12 +1406,18 @@ export default function LaporanBulanan() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {rekapBulanan.dataPerTanggal.map((row) => (
+                          {rekapBulanan.dataPerTanggal.map((row: {
+                            tanggal: string;
+                            harga: Record<string, number>;
+                            berat: Record<string, number>;
+                            totalHarga: number;
+                            totalBerat: number;
+                          }) => (
                             <TableRow key={row.tanggal}>
                               <TableCell className="text-center font-medium">
                                 {new Date(row.tanggal).toLocaleDateString("id-ID")}
                               </TableCell>
-                              {rekapBulanan.jenisBarang.map((jenis) => (
+                              {rekapBulanan.jenisBarang.map((jenis: string) => (
                                 <TableCell key={jenis} className="text-center text-sm">
                                   {row.harga[jenis] > 0 ? row.harga[jenis].toLocaleString("id-ID") : ""}
                                 </TableCell>
@@ -1424,7 +1430,7 @@ export default function LaporanBulanan() {
                           {/* Total Row */}
                           <TableRow className="bg-green-50 font-bold">
                             <TableCell className="text-center">JUMLAH</TableCell>
-                            {rekapBulanan.jenisBarang.map((jenis) => (
+                            {rekapBulanan.jenisBarang.map((jenis: string) => (
                               <TableCell key={jenis} className="text-center text-green-600">
                                 {rekapBulanan.totalHargaPerJenis[jenis] > 0
                                   ? rekapBulanan.totalHargaPerJenis[jenis].toLocaleString("id-ID")
@@ -1452,7 +1458,7 @@ export default function LaporanBulanan() {
                         <TableHeader>
                           <TableRow className="bg-gray-50">
                             <TableHead className="font-bold text-center min-w-[100px]">Tanggal</TableHead>
-                            {rekapBulanan.jenisBarang.map((jenis) => (
+                            {rekapBulanan.jenisBarang.map((jenis: string) => (
                               <TableHead key={jenis} className="font-bold text-center min-w-[80px] text-xs">
                                 {jenis.toUpperCase()}
                               </TableHead>
@@ -1461,12 +1467,18 @@ export default function LaporanBulanan() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {rekapBulanan.dataPerTanggal.map((row) => (
+                          {rekapBulanan.dataPerTanggal.map((row: {
+                            tanggal: string;
+                            harga: Record<string, number>;
+                            berat: Record<string, number>;
+                            totalHarga: number;
+                            totalBerat: number;
+                          }) => (
                             <TableRow key={row.tanggal}>
                               <TableCell className="text-center font-medium">
                                 {new Date(row.tanggal).toLocaleDateString("id-ID")}
                               </TableCell>
-                              {rekapBulanan.jenisBarang.map((jenis) => (
+                              {rekapBulanan.jenisBarang.map((jenis: string) => (
                                 <TableCell key={jenis} className="text-center text-sm">
                                   {row.berat[jenis] > 0 ? row.berat[jenis].toFixed(2) : ""}
                                 </TableCell>
@@ -1479,7 +1491,7 @@ export default function LaporanBulanan() {
                           {/* Total Row */}
                           <TableRow className="bg-blue-50 font-bold">
                             <TableCell className="text-center">JUMLAH</TableCell>
-                            {rekapBulanan.jenisBarang.map((jenis) => (
+                            {rekapBulanan.jenisBarang.map((jenis: string) => (
                               <TableCell key={jenis} className="text-center text-blue-600">
                                 {rekapBulanan.totalBeratPerJenis[jenis] > 0
                                   ? rekapBulanan.totalBeratPerJenis[jenis].toFixed(2)

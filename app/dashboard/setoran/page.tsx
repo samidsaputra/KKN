@@ -1,13 +1,10 @@
 "use client"
 
-import type React from "react"
-
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -17,168 +14,85 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Recycle, Plus, ArrowLeft, Calendar } from "lucide-react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ArrowLeft, Calendar, Plus, Recycle } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useState } from "react"
-import { useToast } from "@/hooks/use-toast"
-import { createClient } from "@/lib/supabase"
-import { useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
-interface Barang {
-  id: string
-  nama: string
-  kategori: string
-  harga: number
-  satuan: string
-}
-
-interface Setoran {
-  id: string
-  nama_anggota: string
-  tanggal: string
-  barang_id: string
-  nama_barang: string
-  berat: number
-  harga_per_kg: number
-  total_harga: number
-}
-
-export default function SetoranAnggota() {
-  const [barang, setBarang] = useState<Barang[]>([])
-  const [setoran, setSetoran] = useState<Setoran[]>([])
+const SetoranPage = () => {
+  const supabase = createClient()
+  const [barang, setBarang] = useState<any[]>([])
+  const [setoran, setSetoran] = useState<any[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
   const [formData, setFormData] = useState({
     namaAnggota: "",
     barangId: "",
     berat: "",
   })
-  const { toast } = useToast()
-  const supabase = createClient()
-  const router = useRouter()
 
   useEffect(() => {
-    const initializePage = async () => {
-      // Check user authentication first
-      const demoUser = localStorage.getItem("demo_user")
-      if (!demoUser) {
-        console.log("No demo user found, redirecting to login")
-        router.push("/login")
-        return
-      }
+    fetchBarang()
+    fetchSetoran()
+  }, [])
 
-      console.log("Demo user found:", JSON.parse(demoUser))
-
-      // Load data after user check
-      loadData()
-      setIsLoading(false)
-    }
-
-    initializePage()
-  }, []) // Remove router from dependencies to prevent infinite loop
-
-  const loadData = () => {
-    try {
-      const barangData = JSON.parse(localStorage.getItem("barang") || "[]")
-      const setoranData = JSON.parse(localStorage.getItem("setoran") || "[]")
-
-      console.log("Loaded barang data:", barangData)
-      console.log("Loaded setoran data:", setoranData)
-
-      setBarang(barangData)
-      setSetoran(setoranData)
-    } catch (error) {
-      console.error("Error loading data:", error)
-    }
+  const fetchBarang = async () => {
+    const { data, error } = await supabase.from("barang").select("*").order("nama")
+    if (!error) setBarang(data || [])
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!formData.namaAnggota || !formData.barangId || !formData.berat) {
-      toast({
-        title: "Error",
-        description: "Semua field harus diisi",
-        variant: "destructive",
-      })
-      return
-    }
-
-    const selectedBarang = barang.find((b) => b.id === formData.barangId)
-    if (!selectedBarang) {
-      toast({
-        title: "Error",
-        description: "Barang tidak ditemukan",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      const berat = Number.parseFloat(formData.berat)
-      const totalHarga = berat * selectedBarang.harga
-
-      const setoranData = {
-        id: Date.now().toString(),
-        nama_anggota: formData.namaAnggota,
-        tanggal: new Date().toISOString().split("T")[0],
-        barang_id: formData.barangId,
-        nama_barang: selectedBarang.nama,
-        berat: berat,
-        harga_per_kg: selectedBarang.harga,
-        total_harga: totalHarga,
-      }
-
-      const existingSetoran = JSON.parse(localStorage.getItem("setoran") || "[]")
-      existingSetoran.push(setoranData)
-      localStorage.setItem("setoran", JSON.stringify(existingSetoran))
-
-      setIsDialogOpen(false)
-      setFormData({ namaAnggota: "", barangId: "", berat: "" })
-
-      toast({
-        title: "Berhasil",
-        description: `Setoran ${formData.namaAnggota} berhasil dicatat dengan nilai Rp ${totalHarga.toLocaleString("id-ID")}`,
-      })
-
-      loadData()
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Gagal menyimpan data setoran",
-        variant: "destructive",
-      })
-    }
+  const fetchSetoran = async () => {
+    const { data, error } = await supabase.from("setoran").select("*").order("tanggal", { ascending: false })
+    if (!error) setSetoran(data || [])
   }
 
   const resetForm = () => {
     setFormData({ namaAnggota: "", barangId: "", berat: "" })
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("id-ID", {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const barangDipilih = barang.find((b) => b.id === formData.barangId)
+    if (!barangDipilih) return
+
+    const berat = parseFloat(formData.berat)
+    const totalHarga = berat * barangDipilih.harga
+
+    const { error } = await supabase.from("setoran").insert({
+      nama_anggota: formData.namaAnggota,
+      tanggal: new Date().toISOString(),
+      barang_id: formData.barangId,
+      nama_barang: barangDipilih.nama,
+      berat,
+      harga_per_kg: barangDipilih.harga,
+      total_harga: totalHarga,
+    })
+
+    if (!error) {
+      fetchSetoran()
+      setIsDialogOpen(false)
+      resetForm()
+    }
+  }
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString("id-ID", {
       day: "2-digit",
-      month: "2-digit",
+      month: "long",
       year: "numeric",
     })
   }
 
-  // Show loading state
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Recycle className="h-12 w-12 text-green-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading Setoran...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -219,13 +133,10 @@ export default function SetoranAnggota() {
                   <CardTitle>Daftar Setoran</CardTitle>
                   <CardDescription>Riwayat setoran sampah dari anggota</CardDescription>
                 </div>
-                <Dialog
-                  open={isDialogOpen}
-                  onOpenChange={(open) => {
-                    setIsDialogOpen(open)
-                    if (!open) resetForm()
-                  }}
-                >
+                <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                  setIsDialogOpen(open)
+                  if (!open) resetForm()
+                }}>
                   <DialogTrigger asChild>
                     <Button>
                       <Plus className="mr-2 h-4 w-4" />
@@ -280,17 +191,12 @@ export default function SetoranAnggota() {
                         {formData.barangId && formData.berat && (
                           <div className="p-4 bg-green-50 rounded-lg">
                             <p className="text-sm text-green-700">
-                              <strong>Perhitungan:</strong>
-                              <br />
+                              <strong>Perhitungan:</strong><br />
                               {barang.find((b) => b.id === formData.barangId)?.nama} × {formData.berat} kg × Rp{" "}
                               {barang.find((b) => b.id === formData.barangId)?.harga.toLocaleString("id-ID")} =
                               <span className="font-bold">
-                                {" "}
-                                Rp{" "}
-                                {(
-                                  Number.parseFloat(formData.berat) *
-                                  (barang.find((b) => b.id === formData.barangId)?.harga || 0)
-                                ).toLocaleString("id-ID")}
+                                {" "}Rp{" "}
+                                {(parseFloat(formData.berat) * (barang.find((b) => b.id === formData.barangId)?.harga || 0)).toLocaleString("id-ID")}
                               </span>
                             </p>
                           </div>
@@ -353,3 +259,5 @@ export default function SetoranAnggota() {
     </div>
   )
 }
+
+export default SetoranPage

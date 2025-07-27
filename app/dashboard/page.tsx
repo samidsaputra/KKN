@@ -7,6 +7,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { createClient } from "@/lib/supabase"
 import {
   LineChart,
   Line,
@@ -33,7 +34,10 @@ interface ChartData {
   nilai: number
 }
 
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#A28FD0", "#FF6F91", "#6A4C93"]
+
 export default function Dashboard() {
+  const supabase = createClient()
   const [stats, setStats] = useState<Stats>({
     totalBarang: 0,
     totalSetoran: 0,
@@ -47,222 +51,93 @@ export default function Dashboard() {
   const router = useRouter()
   const { toast } = useToast()
 
-  useEffect(() => {
-    const initializeDashboard = async () => {
-      // Check user authentication first
-      const demoUser = localStorage.getItem("demo_user")
-      if (!demoUser) {
-        router.push("/login")
-        return
-      }
-
-      setUser(JSON.parse(demoUser))
-
-      // Load data after user check
-      loadDemoData()
-      setIsLoading(false)
-    }
-
-    initializeDashboard()
-  }, [])
-
-  const checkUser = () => {
-    const demoUser = localStorage.getItem("demo_user")
-    if (!demoUser) {
-      return false
-    }
-    setUser(JSON.parse(demoUser))
-    return true
-  }
-
-  const loadDemoData = () => {
-    try {
-      // Load demo data from localStorage or set defaults
-      const barang = JSON.parse(localStorage.getItem("barang") || "[]")
-      const setoran = JSON.parse(localStorage.getItem("setoran") || "[]")
-
-      const uniqueAnggota = new Set(setoran.map((s: any) => s.nama_anggota)).size
-      const totalNilai = setoran.reduce((sum: number, s: any) => sum + s.total_harga, 0)
-
-      setStats({
-        totalBarang: barang.length,
-        totalSetoran: setoran.length,
-        totalAnggota: uniqueAnggota,
-        totalNilai: totalNilai,
-      })
-
-      // Generate sample chart data based on actual data or use defaults
-      const sampleChartData = [
-        {
-          month: "Jan",
-          setoran: Math.max(1, Math.floor(setoran.length * 0.1)),
-          nilai: Math.max(100000, totalNilai * 0.1),
-        },
-        {
-          month: "Feb",
-          setoran: Math.max(1, Math.floor(setoran.length * 0.15)),
-          nilai: Math.max(150000, totalNilai * 0.15),
-        },
-        {
-          month: "Mar",
-          setoran: Math.max(1, Math.floor(setoran.length * 0.12)),
-          nilai: Math.max(120000, totalNilai * 0.12),
-        },
-        {
-          month: "Apr",
-          setoran: Math.max(1, Math.floor(setoran.length * 0.18)),
-          nilai: Math.max(180000, totalNilai * 0.18),
-        },
-        {
-          month: "May",
-          setoran: Math.max(1, Math.floor(setoran.length * 0.14)),
-          nilai: Math.max(140000, totalNilai * 0.14),
-        },
-        {
-          month: "Jun",
-          setoran: Math.max(1, Math.floor(setoran.length * 0.2)),
-          nilai: Math.max(200000, totalNilai * 0.2),
-        },
-      ]
-      setChartData(sampleChartData)
-
-      // Generate sample pie data based on actual categories or use defaults
-      const kategoriCount = barang.reduce((acc: any, item: any) => {
-        acc[item.kategori] = (acc[item.kategori] || 0) + 1
-        return acc
-      }, {})
-
-      const samplePieData =
-        Object.keys(kategoriCount).length > 0
-          ? Object.entries(kategoriCount).map(([name, value]) => ({ name, value }))
-          : [
-              { name: "Plastik", value: 45 },
-              { name: "Kertas", value: 30 },
-              { name: "Logam", value: 15 },
-              { name: "Kaca", value: 10 },
-            ]
-
-      setPieData(samplePieData)
-    } catch (error) {
-      console.error("Error loading demo data:", error)
-      // Set default values if there's an error
-      setStats({
-        totalBarang: 0,
-        totalSetoran: 0,
-        totalAnggota: 0,
-        totalNilai: 0,
-      })
-      setChartData([])
-      setPieData([])
-    }
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem("demo_user")
-    toast({
-      title: "Berhasil",
-      description: "Logout berhasil",
-    })
-    router.push("/")
-  }
-
-  const handleBackupData = () => {
-    try {
-      const barang = JSON.parse(localStorage.getItem("barang") || "[]")
-      const setoran = JSON.parse(localStorage.getItem("setoran") || "[]")
-
-      const backupData = {
-        timestamp: new Date().toISOString(),
-        barang: barang,
-        setoran: setoran,
-      }
-
-      const dataStr = JSON.stringify(backupData, null, 2)
-      const dataBlob = new Blob([dataStr], { type: "application/json" })
-      const url = URL.createObjectURL(dataBlob)
-
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `backup-bank-sampah-${new Date().toISOString().split("T")[0]}.json`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) {
       toast({
-        title: "Berhasil",
-        description: "Data berhasil dibackup",
-      })
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Gagal backup data",
+        title: "Logout Error",
+        description: error.message,
         variant: "destructive",
       })
+    } else {
+      router.push("/login")
     }
   }
 
-  const handleRestoreData = () => {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = ".json"
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (!file) return
+useEffect(() => {
+  const fetchUserAndData = async () => {
+    const { data: { user }, error } = await supabase.auth.getUser()
 
-      try {
-        const text = await file.text()
-        const backupData = JSON.parse(text)
+    if (!user || error) {
+      router.push("/login")
+      return
+    }
 
-        if (backupData.barang) {
-          localStorage.setItem("barang", JSON.stringify(backupData.barang))
-        }
-        if (backupData.setoran) {
-          localStorage.setItem("setoran", JSON.stringify(backupData.setoran))
-        }
+    setUser(user)
+    await loadDashboardData()
+    setIsLoading(false)
+  }
 
-        toast({
-          title: "Berhasil",
-          description: "Data berhasil direstore",
-        })
+  fetchUserAndData()
+}, [])
 
-        loadDemoData() // Reload data
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Gagal restore data. Pastikan file backup valid.",
-          variant: "destructive",
-        })
+const loadDashboardData = async () => {
+  try {
+    const { data: barangData, error: barangError } = await supabase.from("barang").select("*")
+    const { data: setoranData, error: setoranError } = await supabase.from("setoran").select("*")
+
+    if (barangError || setoranError) {
+      throw new Error(barangError?.message || setoranError?.message)
+    }
+
+    const uniqueAnggota = new Set(setoranData.map((s) => s.nama_anggota)).size
+    const totalNilai = setoranData.reduce((sum, s) => sum + (typeof s.total_harga === "number" ? s.total_harga : Number(s.total_harga) || 0), 0)
+
+    setStats({
+      totalBarang: barangData.length,
+      totalSetoran: setoranData.length,
+      totalAnggota: uniqueAnggota,
+      totalNilai,
+    })
+
+    // Line chart: agregasi per bulan
+    const groupedByMonth: { [key: string]: { setoran: number; nilai: number } } = {}
+    setoranData.forEach((s) => {
+      const month =
+        s.tanggal && (typeof s.tanggal === "string" || typeof s.tanggal === "number" || s.tanggal instanceof Date)
+          ? new Date(s.tanggal).toLocaleString("default", { month: "short" })
+          : "Unknown"
+      if (!groupedByMonth[month]) {
+        groupedByMonth[month] = { setoran: 0, nilai: 0 }
       }
-    }
-    input.click()
-  }
+      groupedByMonth[month].setoran += 1
+      groupedByMonth[month].nilai += typeof s.total_harga === "number" ? s.total_harga : Number(s.total_harga) || 0
+    })
 
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"]
+    const chartArray = Object.entries(groupedByMonth).map(([month, val]) => ({
+      month,
+      setoran: val.setoran,
+      nilai: val.nilai,
+    }))
+    setChartData(chartArray)
 
-  // Show loading state
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Recycle className="h-12 w-12 text-green-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading Dashboard...</p>
-        </div>
-      </div>
-    )
-  }
+    // Pie chart: kategori barang
+    const kategoriCount = barangData.reduce((acc: any, item: any) => {
+      acc[item.kategori] = (acc[item.kategori] || 0) + 1
+      return acc
+    }, {})
 
-  // Show login redirect if no user
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">Redirecting to login...</p>
-          <Button onClick={() => router.push("/login")}>Go to Login</Button>
-        </div>
-      </div>
-    )
+    const kategoriPie = Object.entries(kategoriCount).map(([name, value]) => ({ name, value }))
+    setPieData(kategoriPie)
+  } catch (err) {
+    console.error("Error loading Supabase data:", err)
+    toast({
+      title: "Error",
+      description: "Gagal memuat data dari Supabase",
+      variant: "destructive",
+    })
   }
+}
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -275,7 +150,6 @@ export default function Dashboard() {
               <span className="text-2xl font-bold text-gray-900">Bank Sampah Digital</span>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">Welcome, {user?.email}</span>
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Logout
@@ -286,21 +160,6 @@ export default function Dashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Demo Mode Notice */}
-        <Card className="mb-6 border-blue-200 bg-blue-50">
-          <CardContent className="pt-4">
-            <div className="flex items-start space-x-2">
-              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-blue-800">Mode Demo Aktif</p>
-                <p className="text-blue-700">
-                  Data disimpan sementara di browser. Gunakan fitur backup untuk menyimpan data permanen.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard Bank Sampah</h1>
           <p className="text-gray-600">Kelola data bank sampah Anda dengan mudah</p>
@@ -386,7 +245,7 @@ export default function Dashboard() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
@@ -401,27 +260,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Backup Section */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Backup & Restore Data</CardTitle>
-            <CardDescription>Kelola backup data untuk keamanan sistem</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button onClick={handleBackupData} className="flex-1">
-                <Download className="mr-2 h-4 w-4" />
-                Backup Data
-              </Button>
-              <Button onClick={handleRestoreData} variant="outline" className="flex-1 bg-transparent">
-                <Upload className="mr-2 h-4 w-4" />
-                Restore Data
-              </Button>
-            </div>
-            <p className="text-sm text-gray-500 mt-2">Backup data secara berkala untuk mencegah kehilangan data</p>
-          </CardContent>
-        </Card>
 
         {/* Menu Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
