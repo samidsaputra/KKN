@@ -95,10 +95,17 @@ export default function DataBarang() {
       return
     }
 
+    const harga = parseFloat(formData.harga)
+    if (isNaN(harga) || harga <= 0) {
+      toast({ title: "Error", description: "Harga harus berupa angka positif", variant: "destructive" })
+      return
+    }
+
+
     const barangData = {
       nama: formData.nama,
       kategori: formData.kategori,
-      harga: parseFloat(formData.harga),
+      harga: harga,
       satuan: formData.satuan,
     }
 
@@ -156,6 +163,7 @@ export default function DataBarang() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -173,14 +181,15 @@ export default function DataBarang() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Data Master Barang</h1>
+      {/* Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+        <section>
+          <h1 className="text-3xl font-bold text-gray-900 mb-1">Data Master Barang</h1>
           <p className="text-gray-600">Kelola data jenis sampah dan harga per kilogram</p>
-        </div>
+        </section>
 
         <Card>
-          <CardHeader className="flex justify-between items-center">
+          <CardHeader className="flex justify-between items-center flex-wrap gap-4">
             <div>
               <CardTitle>Daftar Barang</CardTitle>
               <CardDescription>Kelola jenis sampah yang diterima di bank sampah</CardDescription>
@@ -207,6 +216,7 @@ export default function DataBarang() {
                 </DialogHeader>
                 <form onSubmit={handleSubmit}>
                   <div className="grid gap-4 py-4">
+                    {/* Nama */}
                     <div className="grid gap-2">
                       <Label htmlFor="nama">Nama Barang</Label>
                       <Input
@@ -215,6 +225,8 @@ export default function DataBarang() {
                         onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
                       />
                     </div>
+
+                    {/* Kategori */}
                     <div className="grid gap-2">
                       <Label htmlFor="kategori">Kategori</Label>
                       <Select
@@ -233,15 +245,20 @@ export default function DataBarang() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Harga */}
                     <div className="grid gap-2">
                       <Label htmlFor="harga">Harga per Kg (Rp)</Label>
                       <Input
                         id="harga"
                         type="number"
+                        min="1"
                         value={formData.harga}
                         onChange={(e) => setFormData({ ...formData, harga: e.target.value })}
                       />
                     </div>
+
+                    {/* Satuan */}
                     <div className="grid gap-2">
                       <Label htmlFor="satuan">Satuan</Label>
                       <Select
@@ -249,7 +266,7 @@ export default function DataBarang() {
                         onValueChange={(value) => setFormData({ ...formData, satuan: value })}
                       >
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Pilih satuan" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="kg">Kilogram (kg)</SelectItem>
@@ -265,15 +282,10 @@ export default function DataBarang() {
               </DialogContent>
             </Dialog>
           </CardHeader>
+
           <CardContent>
             {barang.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-500 mb-4">Belum ada data barang</p>
-                <Button onClick={() => setIsDialogOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Tambah Barang Pertama
-                </Button>
-              </div>
+              <div className="text-center py-8 text-gray-500">Belum ada data barang</div>
             ) : (
               <Table>
                 <TableHeader>
@@ -309,7 +321,7 @@ export default function DataBarang() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </main>
     </div>
   )
 }

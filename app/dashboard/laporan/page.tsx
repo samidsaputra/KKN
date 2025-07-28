@@ -73,12 +73,10 @@ interface LaporanKeuangan {
 
 export default function LaporanBulanan() {
   const [setoran, setSetoran] = useState<Setoran[]>([])
-  const [penarikan, setPenarikan] = useState<Penarikan[]>([])
-  const [transaksiKeuangan, setTransaksiKeuangan] = useState<TransaksiKeuangan[]>([])
   const [selectedMonth, setSelectedMonth] = useState("")
   const [selectedYear, setSelectedYear] = useState("")
   const [selectedAnggota, setSelectedAnggota] = useState("")
-  const [laporanType, setLaporanType] = useState<"bulanan" | "per-anggota" | "keuangan">("bulanan")
+  const [laporanType, setLaporanType] = useState<"bulanan" | "per-anggota">("bulanan")
   const [bukuTabungan, setBukuTabungan] = useState<BukuTabungan[]>([])
   const [laporanKeuangan, setLaporanKeuangan] = useState<LaporanKeuangan | null>(null)
   const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false)
@@ -100,47 +98,41 @@ export default function LaporanBulanan() {
 
   // Add these new state variables at the top with other useState declarations:
   const [rekapBulanan, setRekapBulanan] = useState<any>(null)
+  // 1. Tambahkan state loading import jika perlu
+  const [importLoading, setImportLoading] = useState(false)
 
   useEffect(() => {
-    // Check user authentication first
-    const demoUser = localStorage.getItem("demo_user")
-    if (!demoUser) {
-      router.push("/login")
-      return
-    }
-
-    loadData()
-
-    // Set default to current month and year
-    const now = new Date()
-    setSelectedMonth((now.getMonth() + 1).toString().padStart(2, "0"))
-    setSelectedYear(now.getFullYear().toString())
+    (async () => {
+      await loadData()
+      const now = new Date()
+      setSelectedMonth((now.getMonth() + 1).toString().padStart(2, "0"))
+      setSelectedYear(now.getFullYear().toString())
+    })()
   }, [router])
 
-  const checkUser = () => {
-    const demoUser = localStorage.getItem("demo_user")
-    if (!demoUser) {
-      router.push("/login")
-      return false
-    }
-    return true
-  }
-
-  const loadData = () => {
+  const loadData = async () => {
     try {
-      const setoranData = JSON.parse(localStorage.getItem("setoran") || "[]")
-      const penarikanData = JSON.parse(localStorage.getItem("penarikan") || "[]")
-      const transaksiData = JSON.parse(localStorage.getItem("transaksi_keuangan") || "[]")
-      setSetoran(setoranData)
-      setPenarikan(penarikanData)
-      setTransaksiKeuangan(transaksiData)
+      const { data: setoranData, error: setoranError } = await supabase.from("setoran").select("*")
+      if (setoranError) throw setoranError
+      setSetoran(
+        (setoranData || []).map((item: any) => ({
+          id: String(item.id),
+          nama_anggota: String(item.nama_anggota),
+          tanggal: String(item.tanggal),
+          barang_id: String(item.barang_id),
+          nama_barang: String(item.nama_barang),
+          berat: Number(item.berat),
+          harga_per_kg: Number(item.harga_per_kg),
+          total_harga: Number(item.total_harga),
+        }))
+      )
     } catch (error) {
       console.error("Error loading data:", error)
     }
   }
 
   const getUniqueAnggota = () => {
-    const anggotaSet = new Set(setoran.map((s) => s.nama_anggota))
+    const anggotaSet = new Set(setoran.map((s: any) => s.nama_anggota))
     return Array.from(anggotaSet).sort()
   }
 
@@ -155,18 +147,13 @@ export default function LaporanBulanan() {
     }
 
     // Filter setoran untuk anggota yang dipilih
-    const setoranAnggota = setoran.filter((s) => s.nama_anggota === selectedAnggota)
-    const penarikanAnggota = penarikan.filter((p) => p.nama_anggota === selectedAnggota)
+    const setoranAnggota = setoran.filter((s: any) => s.nama_anggota === selectedAnggota)
 
     // Gabungkan dan urutkan berdasarkan tanggal
     const allTransactions: any[] = [
       ...setoranAnggota.map((s) => ({
         ...s,
         type: "setoran",
-      })),
-      ...penarikanAnggota.map((p) => ({
-        ...p,
-        type: "penarikan",
       })),
     ].sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime())
 
@@ -185,18 +172,6 @@ export default function LaporanBulanan() {
           keluar: 0,
           saldo: saldo,
           paraf: "",
-        })
-      } else {
-        saldo -= transaction.jumlah
-        bukuData.push({
-          tanggal: transaction.tanggal,
-          nama_barang: "PENARIKAN",
-          harga: 0,
-          kg: 0,
-          masuk: 0,
-          keluar: transaction.jumlah,
-          saldo: saldo,
-          paraf: "DIAMBIL",
         })
       }
     })
@@ -218,48 +193,86 @@ export default function LaporanBulanan() {
       return
     }
 
-    // Filter transaksi berdasarkan bulan dan tahun
-    const filteredTransaksi = transaksiKeuangan.filter((t) => {
-      const date = new Date(t.tanggal)
-      return (
-        date.getMonth() + 1 === Number.parseInt(selectedMonth) && date.getFullYear() === Number.parseInt(selectedYear)
-      )
-    })
-
-    // Filter setoran dan penarikan untuk bulan yang sama
-    const filteredSetoran = setoran.filter((s) => {
+    // Filter setoran berdasarkan bulan dan tahun
+    const filteredSetoran = setoran.filter((s: any) => {
       const date = new Date(s.tanggal)
       return (
         date.getMonth() + 1 === Number.parseInt(selectedMonth) && date.getFullYear() === Number.parseInt(selectedYear)
       )
     })
 
-    const filteredPenarikan = penarikan.filter((p) => {
-      const date = new Date(p.tanggal)
-      return (
-        date.getMonth() + 1 === Number.parseInt(selectedMonth) && date.getFullYear() === Number.parseInt(selectedYear)
-      )
+    if (filteredSetoran.length === 0) {
+      toast({
+        title: "Info",
+        description: "Tidak ada data setoran untuk periode yang dipilih",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Get unique jenis barang
+    const jenisBarang: string[] = [...new Set(filteredSetoran.map((s: any) => s.nama_barang))].filter((x): x is string => typeof x === 'string').sort()
+
+    // Get unique tanggal
+    const uniqueTanggal = [...new Set(filteredSetoran.map((s: any) => s.tanggal))].sort()
+
+    // Process data per tanggal
+    const dataPerTanggal = uniqueTanggal.map((tanggal) => {
+      const setoranHariIni = filteredSetoran.filter((s: any) => s.tanggal === tanggal)
+
+      const harga: any = {}
+      const berat: any = {}
+      let totalHarga = 0
+      let totalBerat = 0
+
+      // Initialize all jenis barang with 0
+      jenisBarang.forEach((jenis) => {
+        harga[jenis] = 0
+        berat[jenis] = 0
+      })
+
+      // Sum up data for each jenis barang
+      setoranHariIni.forEach((setoran: any) => {
+        harga[setoran.nama_barang] += setoran.total_harga
+        berat[setoran.nama_barang] += setoran.berat
+        totalHarga += setoran.total_harga
+        totalBerat += setoran.berat
+      })
+
+      return {
+        tanggal,
+        harga,
+        berat,
+        totalHarga,
+        totalBerat,
+      }
     })
 
-    // Hitung total dari setoran anggota (masuk)
-    const totalSetoranAnggota = filteredSetoran.reduce((sum, s) => sum + s.total_harga, 0)
-    const totalPenarikanAnggota = filteredPenarikan.reduce((sum, p) => sum + p.jumlah, 0)
+    // Calculate totals per jenis barang
+    const totalHargaPerJenis: any = {}
+    const totalBeratPerJenis: any = {}
+    let grandTotalHarga = 0
+    let grandTotalBerat = 0
 
-    // Hitung total dari transaksi operasional
-    const transaksiMasuk = filteredTransaksi.filter((t) => t.jenis === "masuk")
-    const transaksiKeluar = filteredTransaksi.filter((t) => t.jenis === "keluar")
+    jenisBarang.forEach((jenis) => {
+      totalHargaPerJenis[jenis] = 0
+      totalBeratPerJenis[jenis] = 0
+    })
 
-    const totalTransaksiMasuk = transaksiMasuk.reduce((sum, t) => sum + t.jumlah, 0)
-    const totalTransaksiKeluar = transaksiKeluar.reduce((sum, t) => sum + t.jumlah, 0)
+    dataPerTanggal.forEach((row: any) => {
+      jenisBarang.forEach((jenis) => {
+        totalHargaPerJenis[jenis] += row.harga[jenis]
+        totalBeratPerJenis[jenis] += row.berat[jenis]
+      })
+      grandTotalHarga += row.totalHarga
+      grandTotalBerat += row.totalBerat
+    })
 
-    // Total keseluruhan
-    const totalMasuk = totalSetoranAnggota + totalTransaksiMasuk
-    const totalKeluar = totalPenarikanAnggota + totalTransaksiKeluar
-    const saldoAkhir = totalMasuk - totalKeluar
-
-    // Gabungkan semua transaksi masuk dan keluar
-    const allTransaksiMasuk = [
-      ...filteredSetoran.map((s) => ({
+    const laporan: LaporanKeuangan = {
+      totalMasuk: grandTotalHarga,
+      totalKeluar: 0, // No more penarikan
+      saldoAkhir: grandTotalHarga, // No more penarikan
+      transaksiMasuk: filteredSetoran.map((s: any) => ({
         id: s.id,
         tanggal: s.tanggal,
         jenis: "masuk" as const,
@@ -267,27 +280,7 @@ export default function LaporanBulanan() {
         keterangan: `${s.nama_anggota} - ${s.nama_barang}`,
         jumlah: s.total_harga,
       })),
-      ...transaksiMasuk,
-    ]
-
-    const allTransaksiKeluar = [
-      ...filteredPenarikan.map((p) => ({
-        id: p.id,
-        tanggal: p.tanggal,
-        jenis: "keluar" as const,
-        kategori: "Penarikan Anggota",
-        keterangan: `${p.nama_anggota} - ${p.keterangan}`,
-        jumlah: p.jumlah,
-      })),
-      ...transaksiKeluar,
-    ]
-
-    const laporan: LaporanKeuangan = {
-      totalMasuk,
-      totalKeluar,
-      saldoAkhir,
-      transaksiMasuk: allTransaksiMasuk,
-      transaksiKeluar: allTransaksiKeluar,
+      transaksiKeluar: [], // No more penarikan
     }
 
     setLaporanKeuangan(laporan)
@@ -310,12 +303,10 @@ export default function LaporanBulanan() {
     }
 
     // Hitung saldo anggota
-    const setoranAnggota = setoran.filter((s) => s.nama_anggota === withdrawForm.namaAnggota)
-    const penarikanAnggota = penarikan.filter((p) => p.nama_anggota === withdrawForm.namaAnggota)
+    const setoranAnggota = setoran.filter((s: any) => s.nama_anggota === withdrawForm.namaAnggota)
 
-    const totalSetoran = setoranAnggota.reduce((sum, s) => sum + s.total_harga, 0)
-    const totalPenarikan = penarikanAnggota.reduce((sum, p) => sum + p.jumlah, 0)
-    const saldoTersedia = totalSetoran - totalPenarikan
+    const totalSetoran = setoranAnggota.reduce((sum: any, s: any) => sum + s.total_harga, 0)
+    const saldoTersedia = totalSetoran
 
     const jumlahPenarikan = Number.parseFloat(withdrawForm.jumlah)
 
@@ -329,17 +320,15 @@ export default function LaporanBulanan() {
     }
 
     try {
-      const penarikanData = {
-        id: Date.now().toString(),
-        nama_anggota: withdrawForm.namaAnggota,
-        tanggal: new Date().toISOString().split("T")[0],
-        jumlah: jumlahPenarikan,
-        keterangan: withdrawForm.keterangan || "Penarikan dana",
-      }
-
-      const existingPenarikan = JSON.parse(localStorage.getItem("penarikan") || "[]")
-      existingPenarikan.push(penarikanData)
-      localStorage.setItem("penarikan", JSON.stringify(existingPenarikan))
+      const { error } = await supabase.from("penarikan").insert([
+        {
+          nama_anggota: withdrawForm.namaAnggota,
+          tanggal: new Date().toISOString().split("T")[0],
+          jumlah: jumlahPenarikan,
+          keterangan: withdrawForm.keterangan || "Penarikan dana",
+        },
+      ])
+      if (error) throw error
 
       setIsWithdrawDialogOpen(false)
       setWithdrawForm({ namaAnggota: "", jumlah: "", keterangan: "" })
@@ -349,7 +338,7 @@ export default function LaporanBulanan() {
         description: `Penarikan Rp ${jumlahPenarikan.toLocaleString("id-ID")} untuk ${withdrawForm.namaAnggota} berhasil dicatat`,
       })
 
-      loadData()
+      await loadData()
     } catch (error) {
       toast({
         title: "Error",
@@ -372,18 +361,16 @@ export default function LaporanBulanan() {
     }
 
     try {
-      const transaksiData = {
-        id: Date.now().toString(),
-        tanggal: new Date().toISOString().split("T")[0],
-        jenis: transactionForm.jenis,
-        kategori: transactionForm.kategori,
-        keterangan: transactionForm.keterangan,
-        jumlah: Number.parseFloat(transactionForm.jumlah),
-      }
-
-      const existingTransaksi = JSON.parse(localStorage.getItem("transaksi_keuangan") || "[]")
-      existingTransaksi.push(transaksiData)
-      localStorage.setItem("transaksi_keuangan", JSON.stringify(existingTransaksi))
+      const { error } = await supabase.from("transaksi_keuangan").insert([
+        {
+          tanggal: new Date().toISOString().split("T")[0],
+          jenis: transactionForm.jenis,
+          kategori: transactionForm.kategori,
+          keterangan: transactionForm.keterangan,
+          jumlah: Number.parseFloat(transactionForm.jumlah),
+        },
+      ])
+      if (error) throw error
 
       setIsTransactionDialogOpen(false)
       setTransactionForm({ jenis: "masuk", kategori: "", keterangan: "", jumlah: "" })
@@ -393,7 +380,7 @@ export default function LaporanBulanan() {
         description: `Transaksi ${transactionForm.jenis} Rp ${Number.parseFloat(transactionForm.jumlah).toLocaleString("id-ID")} berhasil dicatat`,
       })
 
-      loadData()
+      await loadData()
     } catch (error) {
       toast({
         title: "Error",
@@ -565,13 +552,11 @@ export default function LaporanBulanan() {
   }
 
   const getSaldoAnggota = (namaAnggota: string) => {
-    const setoranAnggota = setoran.filter((s) => s.nama_anggota === namaAnggota)
-    const penarikanAnggota = penarikan.filter((p) => p.nama_anggota === namaAnggota)
+    const setoranAnggota = setoran.filter((s: any) => s.nama_anggota === namaAnggota)
 
-    const totalSetoran = setoranAnggota.reduce((sum, s) => sum + s.total_harga, 0)
-    const totalPenarikan = penarikanAnggota.reduce((sum, p) => sum + p.jumlah, 0)
+    const totalSetoran = setoranAnggota.reduce((sum: any, s: any) => sum + s.total_harga, 0)
 
-    return totalSetoran - totalPenarikan
+    return totalSetoran
   }
 
   const monthNames = [
@@ -593,7 +578,7 @@ export default function LaporanBulanan() {
   const uniqueAnggota = getUniqueAnggota()
 
   const kategoriMasuk = ["Setoran Anggota", "Donasi", "Penjualan Sampah", "Lain-lain"]
-  const kategoriKeluar = ["Operasional", "Bensin", "Perawatan", "Gaji", "Penarikan Anggota", "Lain-lain"]
+  const kategoriKeluar = ["Operasional", "Bensin", "Perawatan", "Gaji", "Lain-lain"]
 
   // Add these new functions before the return statement:
 
@@ -608,7 +593,7 @@ export default function LaporanBulanan() {
     }
 
     // Filter setoran berdasarkan bulan dan tahun
-    const filteredSetoran = setoran.filter((s) => {
+    const filteredSetoran = setoran.filter((s: any) => {
       const date = new Date(s.tanggal)
       return (
         date.getMonth() + 1 === Number.parseInt(selectedMonth) && date.getFullYear() === Number.parseInt(selectedYear)
@@ -625,14 +610,14 @@ export default function LaporanBulanan() {
     }
 
     // Get unique jenis barang
-    const jenisBarang = [...new Set(filteredSetoran.map((s) => s.nama_barang))].sort()
+    const jenisBarang: string[] = [...new Set(filteredSetoran.map((s: any) => s.nama_barang))].filter((x): x is string => typeof x === 'string').sort()
 
     // Get unique tanggal
-    const uniqueTanggal = [...new Set(filteredSetoran.map((s) => s.tanggal))].sort()
+    const uniqueTanggal = [...new Set(filteredSetoran.map((s: any) => s.tanggal))].sort()
 
     // Process data per tanggal
     const dataPerTanggal = uniqueTanggal.map((tanggal) => {
-      const setoranHariIni = filteredSetoran.filter((s) => s.tanggal === tanggal)
+      const setoranHariIni = filteredSetoran.filter((s: any) => s.tanggal === tanggal)
 
       const harga: any = {}
       const berat: any = {}
@@ -646,7 +631,7 @@ export default function LaporanBulanan() {
       })
 
       // Sum up data for each jenis barang
-      setoranHariIni.forEach((setoran) => {
+      setoranHariIni.forEach((setoran: any) => {
         harga[setoran.nama_barang] += setoran.total_harga
         berat[setoran.nama_barang] += setoran.berat
         totalHarga += setoran.total_harga
@@ -673,7 +658,7 @@ export default function LaporanBulanan() {
       totalBeratPerJenis[jenis] = 0
     })
 
-    dataPerTanggal.forEach((row) => {
+    dataPerTanggal.forEach((row: any) => {
       jenisBarang.forEach((jenis) => {
         totalHargaPerJenis[jenis] += row.harga[jenis]
         totalBeratPerJenis[jenis] += row.berat[jenis]
@@ -776,6 +761,108 @@ export default function LaporanBulanan() {
     }
   }
 
+  // Tambahkan helper untuk normalisasi nama kolom
+  function getCell(row: any, ...keys: string[]) {
+    for (const key of keys) {
+      if (row[key] !== undefined && row[key] !== null && row[key] !== "") return row[key];
+      // Coba versi lower case
+      const lowerKey = key.toLowerCase();
+      if (row[lowerKey] !== undefined && row[lowerKey] !== null && row[lowerKey] !== "") return row[lowerKey];
+      // Coba versi snake_case
+      const snakeKey = key.replace(/ /g, "_").toLowerCase();
+      if (row[snakeKey] !== undefined && row[snakeKey] !== null && row[snakeKey] !== "") return row[snakeKey];
+    }
+    return "";
+  }
+
+  // 2. Tambahkan fungsi handleImportExcel
+ const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  setImportLoading(true);
+  try {
+    const XLSX = await import("xlsx");
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: "array" });
+
+    // Parse sheet harga
+    const wsHarga = workbook.Sheets["Rekap Harga"] || workbook.Sheets[workbook.SheetNames[0]];
+    const hargaRows = XLSX.utils.sheet_to_json(wsHarga, { header: 1 }) as any[][];
+    // Parse sheet berat
+    const wsBerat = workbook.Sheets["Rekap Berat"] || workbook.Sheets[workbook.SheetNames[1]];
+    const beratRows = XLSX.utils.sheet_to_json(wsBerat, { header: 1 }) as any[][];
+
+    // Helper untuk parsing data per tanggal dan barang
+function parseRekap(rows: any[][]) {
+  const headerIdx = rows.findIndex(r =>
+    (r[0] || "")
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .includes("tanggal")
+  );
+  if (headerIdx === -1) throw new Error("Header Tanggal tidak ditemukan di file Excel.");
+  const headers = rows[headerIdx];
+  const dataRows = rows.slice(headerIdx + 1).filter(r => (r[0] || "").toString().toLowerCase() !== "jumlah" && r[0]);
+  const result: { tanggal: string, barang: string, value: number }[] = [];
+  for (const row of dataRows) {
+    // Format tanggal ke yyyy-mm-dd
+    let tanggal = row[0];
+    if (typeof tanggal === "string" && tanggal.includes("/")) {
+      // dd/mm/yyyy atau d/m/yyyy
+      const [d, m, y] = tanggal.split("/");
+      tanggal = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    }
+    for (let i = 1; i < headers.length - 1; i++) { // skip TOTAL
+      const barang = headers[i];
+      const value = Number(row[i] || 0);
+      if (barang && tanggal && value) {
+        result.push({ tanggal, barang, value });
+      }
+    }
+  }
+  return result;
+}
+
+    const hargaData = parseRekap(hargaRows);
+    const beratData = parseRekap(beratRows);
+
+    // Gabungkan harga dan berat berdasarkan tanggal & barang
+    const setoranData = hargaData.map(h => {
+      const b = beratData.find(bd => bd.tanggal === h.tanggal && bd.barang === h.barang);
+      return {
+        tanggal: h.tanggal,
+        nama_barang: h.barang,
+        berat: b ? b.value : 0,
+        harga_per_kg: 0,
+        total_harga: h.value,
+        barang_id: null,
+        nama_anggota: "REKAP", // Kosongkan atau isi sesuai kebutuhan
+      };
+    });
+
+    if (setoranData.length === 0) throw new Error("Tidak ada data valid yang ditemukan di file Excel.");
+
+    const { error } = await supabase.from("setoran").insert(setoranData);
+    if (error) throw error;
+    toast({
+      title: "Berhasil",
+      description: "Data register bulanan berhasil diimport.",
+    });
+    await loadData();
+  } catch (err) {
+    toast({
+      title: "Error",
+      description: "Gagal import file Excel. Pastikan format file sesuai.",
+      variant: "destructive",
+    });
+    console.error(err);
+  } finally {
+    setImportLoading(false);
+  }
+};
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -787,110 +874,6 @@ export default function LaporanBulanan() {
               <span className="text-2xl font-bold text-gray-900">Bank Sampah Digital</span>
             </div>
             <div className="flex items-center space-x-4">
-              <Dialog open={isTransactionDialogOpen} onOpenChange={setIsTransactionDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-blue-600 hover:bg-blue-700">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Transaksi Keuangan
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Tambah Transaksi Keuangan</DialogTitle>
-                    <DialogDescription>Catat pemasukan atau pengeluaran operasional</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleTransaction}>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="jenis">Jenis Transaksi</Label>
-                        <Select
-                          value={transactionForm.jenis}
-                          onValueChange={(value: "masuk" | "keluar") =>
-                            setTransactionForm({ ...transactionForm, jenis: value })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="masuk">
-                              <div className="flex items-center">
-                                <TrendingUp className="mr-2 h-4 w-4 text-green-600" />
-                                Pemasukan
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="keluar">
-                              <div className="flex items-center">
-                                <TrendingDown className="mr-2 h-4 w-4 text-red-600" />
-                                Pengeluaran
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="kategori">Kategori</Label>
-                        <Select
-                          value={transactionForm.kategori}
-                          onValueChange={(value) => setTransactionForm({ ...transactionForm, kategori: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih kategori" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(transactionForm.jenis === "masuk" ? kategoriMasuk : kategoriKeluar).map((kategori) => (
-                              <SelectItem key={kategori} value={kategori}>
-                                {kategori}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="keterangan">Keterangan</Label>
-                        <Input
-                          id="keterangan"
-                          value={transactionForm.keterangan}
-                          onChange={(e) => setTransactionForm({ ...transactionForm, keterangan: e.target.value })}
-                          placeholder="Contoh: Pembelian bensin mobil"
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="jumlah">Jumlah (Rp)</Label>
-                        <Input
-                          id="jumlah"
-                          type="number"
-                          value={transactionForm.jumlah}
-                          onChange={(e) => setTransactionForm({ ...transactionForm, jumlah: e.target.value })}
-                          placeholder="Masukkan jumlah"
-                        />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        type="submit"
-                        className={
-                          transactionForm.jenis === "masuk"
-                            ? "bg-green-600 hover:bg-green-700"
-                            : "bg-red-600 hover:bg-red-700"
-                        }
-                      >
-                        {transactionForm.jenis === "masuk" ? (
-                          <>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Catat Pemasukan
-                          </>
-                        ) : (
-                          <>
-                            <Minus className="mr-2 h-4 w-4" />
-                            Catat Pengeluaran
-                          </>
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
               <Dialog open={isWithdrawDialogOpen} onOpenChange={setIsWithdrawDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="bg-red-50 border-red-200 hover:bg-red-100">
@@ -987,13 +970,9 @@ export default function LaporanBulanan() {
             Buku Tabungan
           </Button>
           <Button
-            variant={laporanType === "keuangan" ? "default" : "outline"}
-            onClick={() => setLaporanType("keuangan")}
+            variant={laporanType === "bulanan" ? "default" : "outline"}
+            onClick={() => setLaporanType("bulanan")}
           >
-            <TrendingUp className="mr-2 h-4 w-4" />
-            Laporan Keuangan
-          </Button>
-          <Button variant={laporanType === "bulanan" ? "default" : "outline"} onClick={() => setLaporanType("bulanan")}>
             <FileText className="mr-2 h-4 w-4" />
             Register Bulanan
           </Button>
@@ -1121,202 +1100,6 @@ export default function LaporanBulanan() {
         )}
 
         {/* Laporan Keuangan Section */}
-        {laporanType === "keuangan" && (
-          <>
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Filter Laporan Keuangan</CardTitle>
-                <CardDescription>Pilih periode untuk membuat laporan keuangan</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-3 gap-4 items-end">
-                  <div className="grid gap-2">
-                    <Label htmlFor="month">Bulan</Label>
-                    <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih bulan" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {monthNames.map((month, index) => (
-                          <SelectItem key={index} value={(index + 1).toString().padStart(2, "0")}>
-                            {month}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="year">Tahun</Label>
-                    <Select value={selectedYear} onValueChange={setSelectedYear}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih tahun" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button onClick={generateLaporanKeuangan}>
-                    <TrendingUp className="mr-2 h-4 w-4" />
-                    Buat Laporan Keuangan
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Laporan Keuangan Results */}
-            {laporanKeuangan && (
-              <>
-                {/* Summary Cards */}
-                <div className="grid md:grid-cols-3 gap-4 mb-6">
-                  <Card className="border-green-200 bg-green-50">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium flex items-center">
-                        <TrendingUp className="mr-2 h-4 w-4 text-green-600" />
-                        Total Pemasukan
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold text-green-600">
-                        Rp {laporanKeuangan.totalMasuk.toLocaleString("id-ID")}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-red-200 bg-red-50">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium flex items-center">
-                        <TrendingDown className="mr-2 h-4 w-4 text-red-600" />
-                        Total Pengeluaran
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold text-red-600">
-                        Rp {laporanKeuangan.totalKeluar.toLocaleString("id-ID")}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card
-                    className={`border-2 ${laporanKeuangan.saldoAkhir >= 0 ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}
-                  >
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">Saldo Akhir</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div
-                        className={`text-2xl font-bold ${laporanKeuangan.saldoAkhir >= 0 ? "text-green-600" : "text-red-600"}`}
-                      >
-                        Rp {laporanKeuangan.saldoAkhir.toLocaleString("id-ID")}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Download Button */}
-                <Card className="mb-6">
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <CardTitle>Download Laporan Keuangan</CardTitle>
-                        <CardDescription>
-                          Laporan {monthNames[Number.parseInt(selectedMonth) - 1]} {selectedYear} siap didownload
-                        </CardDescription>
-                      </div>
-                      <Button onClick={downloadLaporanKeuangan} className="bg-green-600 hover:bg-green-700">
-                        <Download className="mr-2 h-4 w-4" />
-                        Download Excel
-                      </Button>
-                    </div>
-                  </CardHeader>
-                </Card>
-
-                {/* Detail Tables */}
-                <div className="grid lg:grid-cols-2 gap-6">
-                  {/* Pemasukan */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center text-green-600">
-                        <TrendingUp className="mr-2 h-4 w-4" />
-                        Detail Pemasukan
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Tanggal</TableHead>
-                            <TableHead>Kategori</TableHead>
-                            <TableHead className="text-right">Jumlah</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {laporanKeuangan.transaksiMasuk.map((transaksi) => (
-                            <TableRow key={transaksi.id}>
-                              <TableCell>{new Date(transaksi.tanggal).toLocaleDateString("id-ID")}</TableCell>
-                              <TableCell>
-                                <div>
-                                  <p className="font-medium">{transaksi.kategori}</p>
-                                  <p className="text-sm text-gray-500">{transaksi.keterangan}</p>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right text-green-600 font-medium">
-                                Rp {transaksi.jumlah.toLocaleString("id-ID")}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-
-                  {/* Pengeluaran */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center text-red-600">
-                        <TrendingDown className="mr-2 h-4 w-4" />
-                        Detail Pengeluaran
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Tanggal</TableHead>
-                            <TableHead>Kategori</TableHead>
-                            <TableHead className="text-right">Jumlah</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {laporanKeuangan.transaksiKeluar.map((transaksi) => (
-                            <TableRow key={transaksi.id}>
-                              <TableCell>{new Date(transaksi.tanggal).toLocaleDateString("id-ID")}</TableCell>
-                              <TableCell>
-                                <div>
-                                  <p className="font-medium">{transaksi.kategori}</p>
-                                  <p className="text-sm text-gray-500">{transaksi.keterangan}</p>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right text-red-600 font-medium">
-                                Rp {transaksi.jumlah.toLocaleString("id-ID")}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                </div>
-              </>
-            )}
-          </>
-        )}
-
-        {/* Laporan Bulanan Section */}
         {laporanType === "bulanan" && (
           <>
             <Card className="mb-6">

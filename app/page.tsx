@@ -144,7 +144,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center space-x-3 p-3 bg-white rounded-lg shadow-sm">
                     <Clock className="h-5 w-5 text-blue-600" />
-                    <span className="text-gray-700 font-medium">Senin - Sabtu: 08:00 - 16:00</span>
+                    <span className="text-gray-700 font-medium">Minggu: 08:00 - 10:00</span>
                   </div>
                 </div>
               </CardContent>
@@ -331,16 +331,8 @@ export default function HomePage() {
                 <CardContent>
                   <div className="space-y-3 text-gray-700">
                     <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
-                      <span className="font-medium">Senin - Jumat</span>
-                      <span className="text-green-600 font-semibold">08:00 - 16:00</span>
-                    </div>
-                    <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
-                      <span className="font-medium">Sabtu</span>
-                      <span className="text-green-600 font-semibold">08:00 - 12:00</span>
-                    </div>
-                    <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
                       <span className="font-medium">Minggu</span>
-                      <span className="text-red-600 font-semibold">Tutup</span>
+                      <span className="text-green-400 font-semibold">08.00 - 10.00</span>
                     </div>
                   </div>
                 </CardContent>
@@ -447,16 +439,8 @@ export default function HomePage() {
               <h3 className="text-lg font-semibold mb-4">Jam Operasional</h3>
               <div className="space-y-2 text-gray-400">
                 <div className="flex justify-between">
-                  <span>Senin - Jumat</span>
-                  <span className="text-green-400">08:00 - 16:00</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Sabtu</span>
-                  <span className="text-green-400">08:00 - 12:00</span>
-                </div>
-                <div className="flex justify-between">
                   <span>Minggu</span>
-                  <span className="text-red-400">Tutup</span>
+                  <span className="text-green-400 font-semibold">08.00 - 10.00</span>
                 </div>
               </div>
             </div>
